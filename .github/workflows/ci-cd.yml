@@ -1,5 +1,7 @@
 # This workflow builds the project and deploys to NuGet.org if successful
 name: Build and Deploy to NuGet
+permissions:
+  contents: write
 
 on:
   push:
