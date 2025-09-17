@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - joshw/feat/CiCdBuild
     tags:
       - 'v*.*.*'
   workflow_dispatch:
