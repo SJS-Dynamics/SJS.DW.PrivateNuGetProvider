@@ -1,6 +1,6 @@
 using Dynamicweb.Marketplace.Providers;
 using System.Collections.Concurrent;
-using System.Runtime.Loader;
+using System.Collections.Immutable;
 using Dynamicweb.Configuration;
 using Dynamicweb.Core;
 using Dynamicweb.Extensibility.AddIns;
@@ -16,16 +16,19 @@ using SJS.DW.PrivateNugetProvider.Models;
 
 namespace SJS.DW.PrivateNugetProvider.Providers;
 
-public sealed class PrivateNuGetAddInProvider : AddinProvider
+public sealed class PrivateNuGetAddInProvider : AddinProvider, IDisposable
 {
-    private const int MAX_CONCURRENT_DOWNLOAD_THREADS = 10;
-    private const string OBSOLOTE_TAG = "Obsolete";
+    private const string DefaultVersion = "1.0.0";
+    private const string AppData = "APPDATA";
+    private const string FilePath = "/Files/System";
+    private const int MaxConcurrentDownloadThreads = 10;
+    private const string ObsoloteTag = "Obsolete";
 
     private static ILogger Logger { get; set; } = NullLogger.Instance;
     private static SourceCacheContext PackageCache { get; set; } = new() { DirectDownload = true };
-    private static readonly Lazy<HashSet<NuGetFramework>> _validFrameworks = new(() =>
+    private static readonly Lazy<HashSet<NuGetFramework>> ValidFrameworkList = new(() =>
     {
-        var set = new HashSet<NuGetFramework>//TODO: Load from settings / configuration page
+        var set = new HashSet<NuGetFramework>
         {
             NuGetFramework.AnyFramework,
             NuGetFramework.AgnosticFramework,
@@ -42,9 +45,9 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         return set;
     });
     
-    private static HashSet<NuGetFramework> ValidFrameworks => _validFrameworks.Value;
+    private static HashSet<NuGetFramework> ValidFrameworks => ValidFrameworkList.Value;
 
-    private static Dictionary<string, List<IPackageSearchMetadata>> _feedList = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, List<IPackageSearchMetadata>> FeedList = new(StringComparer.OrdinalIgnoreCase);
     
     public override async Task<IEnumerable<AddinInfo>> Search(string? searchTerm = null, int take = 1000, int skip = 0)
     {
@@ -54,11 +57,10 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             IncludeDelisted = false, 
         };
 
-        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
-        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable(AppData);
+        Environment.SetEnvironmentVariable(AppData, SystemInformation.MapPath(FilePath));
 
         var addins = new List<AddinInfo>();
-        var tasks = new List<Task>();
 
         foreach (var repository in NugetFeedsConfig.Feeds.Select(f => f.GetSourceRepository()))
         {
@@ -92,7 +94,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
                 allPackageVersions.AddRange(allVersions);
             }
 
-            if(_feedList.TryGetValue(repository.PackageSource.Source, out List<IPackageSearchMetadata>? existing))
+            if(FeedList.TryGetValue(repository.PackageSource.Source, out List<IPackageSearchMetadata>? existing))
             {
                 var toAdd = allPackageVersions.Where(r => 
                     !existing.Any(e => e.Identity.Id.Equals(r.Identity.Id, StringComparison.OrdinalIgnoreCase) 
@@ -101,14 +103,14 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             }
             else
             {
-                _feedList[repository.PackageSource.Source] = allPackageVersions.ToList();
+                FeedList[repository.PackageSource.Source] = allPackageVersions.ToList();
             }
 
             var loadedAssemblies = GetLoadedAssembliesVersions();
             
             // Find latest package
             var latestPackages = allPackageVersions
-                .Where(p => !p.Tags.Contains(OBSOLOTE_TAG))
+                .Where(p => !p.Tags.Contains(ObsoloteTag))
                 .GroupBy(p => p.Identity.Id, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.OrderByDescending(p => p.Identity.Version)
                     .First());
@@ -121,28 +123,9 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
                 
                 addins.Add(ToAddinInfo(package, loadedAssemblies, compatible));
             }
-            
-            async Task GetLatestApplicablePackage(IPackageSearchMetadata packageSearchMetaData)
-            {
-                if (packageSearchMetaData.Tags.Contains(OBSOLOTE_TAG)) return;
-                
-                var metadataSource = await repository.GetResourceAsync<PackageMetadataResource>();
-                var orderedPackageVersions = (await metadataSource.GetMetadataAsync(packageSearchMetaData.Identity.Id, true, false, PackageCache, Logger, cancellationToken)).OrderByDescending(m => m.Identity.Version);
-
-                var package = orderedPackageVersions.FirstOrDefault(m =>
-                    m.DependencySets.SelectMany(ds => ds.Packages)
-                        .All(p => !loadedAssemblies.TryGetValue(p.Id, out var val) || p.VersionRange.Satisfies(val)));
-
-                if (package is not null)
-                    addins.Add(ToAddinInfo(package, loadedAssemblies, true));
-                else if (orderedPackageVersions.Any())
-                    addins.Add(ToAddinInfo(orderedPackageVersions.First(), loadedAssemblies, false));
-            }
         }
 
-        await Task.WhenAll(tasks);
-
-        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable(AppData, oldAppDataValue);
 
         return addins;
     }
@@ -156,10 +139,10 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
     public override async Task<ResolvedPackage?> Validate(string id, NuGetVersion? version)
     {
         var cancellationToken = CancellationToken.None;
-        version ??= new("1.0.0");
+        version ??= new(DefaultVersion);
 
-        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
-        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable(AppData);
+        Environment.SetEnvironmentVariable(AppData, SystemInformation.MapPath(FilePath));
         
         // Get 
         var repository = GetRepository(id, version);
@@ -177,18 +160,19 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             Logger,
             cancellationToken);
 
-        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable(AppData, oldAppDataValue);
 
-        if (packageStream?.Length == 0) return default;
+        if (packageStream.Length == 0) return null;
 
         using PackageArchiveReader archive = new(packageStream);
 
         // This concat is necessary to get the framework dependency for a package with no dependencies...
         var supportedFrameworks = archive.GetSupportedFrameworks()
             .Concat(archive.GetPackageDependencies().Select(pd => pd.TargetFramework));
-        
-        if (!supportedFrameworks.Intersect(ValidFrameworks).Any()) throw new ValidationException($"Package does not support current installation. Package supports: \"{string.Join("\", \"", supportedFrameworks)}\"");
-        return await InternalResolve(id, new PackageIdentity(id, new NuGetVersion(version)), 0);
+
+        var nuGetFrameworks = supportedFrameworks.ToList();
+        if (!nuGetFrameworks.Intersect(ValidFrameworks).Any()) throw new ValidationException($"Package does not support current installation. Package supports: \"{string.Join("\", \"", nuGetFrameworks)}\"");
+        return await InternalResolve(id, new PackageIdentity(id, new NuGetVersion(version)));
     }
 
     public async Task Download(string id)
@@ -218,7 +202,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         if (dependencyList is null || dependencyList.Count == 0)
             return new(true);
 
-        var addIns = MarketplaceService.GetAllAddins();
+        var addIns = MarketplaceService.GetAllAddins().ToList();
 
         dependencyList.Reverse();
 
@@ -231,7 +215,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             if (dependencyAddin is null)
                 return new(false, $"Couldn't find addin with name {dependency}!");
 
-            MarketplaceService.Install(dependencyAddin.Package + dependencyAddin.Extension, dependencyAddin.Version?.ToString(), dependencyAddin.AddinProvider ?? typeof(LocalAddinProvider).FullName ?? "");
+            MarketplaceService.Install(dependencyAddin.Package + dependencyAddin.Extension, dependencyAddin.Version?.ToString(), dependencyAddin.AddinProvider);
         }
 
         return new(true);
@@ -239,10 +223,10 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 
     public static ApplicationResponse UninstallAddInDependencies(string package)
     {
-        if (package is null)
+        if (string.IsNullOrWhiteSpace(package))
             return new(false, "Dependency is null");
 
-        if (GetAssemblyLoadContextByAssemblyName(package) is not AssemblyLoadContext assemblyLoadContext)
+        if (GetAssemblyLoadContextByAssemblyName(package) is not { } assemblyLoadContext)
         {
             return UninstallAddin(package);
         }
@@ -316,16 +300,16 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
     {
         if (downloaded is null || package is null || !downloaded.TryAdd(package.Package, null)) return; //if already downloaded a version, skip            
         var cancellationToken = CancellationToken.None;
-        var foundFramework = await DownloadPackage(package, saveLocation, cancellationToken);
+        _ = await DownloadPackage(package, saveLocation, cancellationToken);
         if (package.Dependencies.Any())
         {
             var options = new ParallelOptions
             {
-                MaxDegreeOfParallelism = MAX_CONCURRENT_DOWNLOAD_THREADS,
+                MaxDegreeOfParallelism = MaxConcurrentDownloadThreads,
                 CancellationToken = cancellationToken
             };
 
-            await Parallel.ForEachAsync(package.Dependencies, options, async (dependency, token) =>
+            await Parallel.ForEachAsync(package.Dependencies, options, async (dependency, _) =>
             {
                 var dependencyPackage = ToPackageIdentity(dependency);
                 var dependencyInfo = await InternalResolve(dependencyPackage.Id, dependencyPackage);
@@ -338,11 +322,14 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
     //Downloads the specified package
     private async Task<NuGetFramework?> DownloadPackage(ResolvedPackage resolved, string saveLocation, CancellationToken cancellationToken)
     {
-        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
-        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable(AppData);
+        Environment.SetEnvironmentVariable(AppData, SystemInformation.MapPath(FilePath));
         
         // Get repository
-        var repository = GetRepository(resolved.Package, resolved.Version);
+        var repository = GetRepository(resolved.Package, resolved.Version ?? new NuGetVersion(DefaultVersion));
+        if (repository == null)
+            throw new InvalidOperationException($"Could not find package {resolved.Package} in any configured feed with version {resolved.Version}");
+        
         var resource = await repository.GetResourceAsync<FindPackageByIdResource>();
 
         using MemoryStream packageStream = new();
@@ -360,7 +347,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 
         var lib = GetCorrectFramework(archive.GetLibItems(), ValidFrameworks, out framework);
         var content = GetCorrectFramework(archive.GetContentItems(), ValidFrameworks, out _);
-        var files = archive.GetFiles("Files");
+        var files = archive.GetFiles("Files").ToList();
         if (files.Any())
         {
             var basePath = SystemInformation.MapPath("/Files");
@@ -376,14 +363,12 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         resolved.Dependencies = archive.GetPackageDependencies()
             .SelectMany(d => d.Packages.Select(p => new Dynamicweb.Marketplace.PackageDependency() { Name = p.Id, VersionRange = p.VersionRange }))
             .Where(d => !loadedAssemblies.ContainsKey(d.Name) || loadedAssemblies[d.Name] < (d.VersionRange?.MinVersion 
-                ?? new("1.0.0")))
+                ?? new(DefaultVersion)))
             .ToList();
 
         SaveFiles(allItems, saveLocation, (file, fullPath) => archive.ExtractFile(file, fullPath, Logger));
-        archive.Dispose();
-        packageStream.Dispose();
 
-        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable(AppData, oldAppDataValue);
 
         return framework;
     }
@@ -398,10 +383,16 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
     {
         var cancellationToken = CancellationToken.None;
 
-        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
-        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable(AppData);
+        Environment.SetEnvironmentVariable(AppData, SystemInformation.MapPath(FilePath));
 
-        var repository = GetRepository(id, preference?.Version ?? new NuGetVersion("1.0.0"));
+        var repository = GetRepository(id, preference?.Version ?? new NuGetVersion(DefaultVersion));
+        if (repository == null)
+        {
+            Environment.SetEnvironmentVariable(AppData, oldAppDataValue);
+            return null;
+        }
+        
         var resource = await repository.GetResourceAsync<DependencyInfoResource>();
         var dependencyInfo = await resource.ResolvePackages(
           id,
@@ -435,30 +426,31 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             {
                 foreach (var dependency in resolved.Dependencies.ToArray())
                 {
-                    var version = dependency.VersionRange?.MinVersion ?? new("1.0.0");
+                    var version = dependency.VersionRange?.MinVersion ?? new(DefaultVersion);
                     var resolvedDependency = await InternalResolve(dependency.Name, new PackageIdentity(dependency.Name, version), recursive - 1);
                     if (resolvedDependency != null)
                         resolved.Dependencies.AddRange(resolvedDependency.Dependencies);
                 }
                 resolved.Dependencies = resolved.Dependencies.Distinct().ToList();
             }
-            Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+            Environment.SetEnvironmentVariable(AppData, oldAppDataValue);
 
             return resolved;
         }
-        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable(AppData, oldAppDataValue);
 
         return default;
     }
 
-    private static IEnumerable<SourcePackageDependencyInfo> GetAvailablePackages(IEnumerable<RemoteSourceDependencyInfo> sourceDependencies)
+    private static ImmutableList<SourcePackageDependencyInfo> GetAvailablePackages(IEnumerable<RemoteSourceDependencyInfo> sourceDependencies)
     {
         int minor = 500;
         int major = 500;
         var found = new List<SourcePackageDependencyInfo>();
         int currentMajor = -1;
-        var repository = GetRepository(sourceDependencies.First().Identity.Id, sourceDependencies.First().Identity.Version);
-        foreach (var sourceDependency in sourceDependencies.Reverse())
+        var remoteSourceDependencyInfos = sourceDependencies as RemoteSourceDependencyInfo[] ?? sourceDependencies.ToArray();
+        var repository = GetRepository(remoteSourceDependencyInfos[0].Identity.Id, remoteSourceDependencyInfos[0].Identity.Version);
+        foreach (var sourceDependency in remoteSourceDependencyInfos.Reverse())
         {
             if (major == 0) break;
             if (!sourceDependency.Listed) continue;
@@ -474,26 +466,24 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 
 
             var id = sourceDependency.Identity.Id;
-            foreach (var dg in sourceDependency.DependencyGroups)
-            {
-                if (ValidFrameworks.Contains(dg.TargetFramework))
-                {
-                    minor--;
-                    var dependencyInfo = new SourcePackageDependencyInfo(id, version, dg.Packages, sourceDependency.Listed, repository);
-                    found.Add(dependencyInfo);
-                    break;
-                }
-            }
+            var dg = sourceDependency.DependencyGroups.FirstOrDefault(dg => ValidFrameworks.Contains(dg.TargetFramework));
+            if (dg == null) 
+                continue;
+            
+            minor--;
+            var dependencyInfo = new SourcePackageDependencyInfo(id, version, dg.Packages, sourceDependency.Listed, repository);
+            found.Add(dependencyInfo);
         }
-        return found;
+        return found.ToImmutableList();
     }
 
     private static IEnumerable<string> GetCorrectFramework(IEnumerable<FrameworkSpecificGroup> frameworkItems, HashSet<NuGetFramework> validFrameworks, out NuGetFramework? framework)
     {
+        var frameworkSpecificGroups = frameworkItems.ToList();
         // We check all our valid frameworks in the reverse order to always target the newest framework that's valid
         foreach (var validFramework in validFrameworks.Reverse())
         {
-            var frameworkItem = frameworkItems.FirstOrDefault(item => item.TargetFramework == validFramework);
+            var frameworkItem = frameworkSpecificGroups.FirstOrDefault(item => item.TargetFramework == validFramework);
             if (frameworkItem is not null && frameworkItem.Items.Any())
             {
                 framework = frameworkItem.TargetFramework;
@@ -525,7 +515,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 
     private static PackageIdentity ToPackageIdentity(Dynamicweb.Marketplace.PackageDependency dependency)
     {
-        return new PackageIdentity(dependency.Name, dependency.VersionRange?.MinVersion ?? new("1.0.0"));
+        return new PackageIdentity(dependency.Name, dependency.VersionRange?.MinVersion ?? new(DefaultVersion));
     }
 
     private static AddinInfo ToAddinInfo(IPackageSearchMetadata item, Dictionary<string, NuGetVersion> loadedAssemblies, bool compatible)
@@ -550,7 +540,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 
         return addin;
     }
-    public override Task Install(string packageId, NuGetVersion? version = null) => Install(packageId, version, false);
+    public override Task Install(string package, NuGetVersion? version = null) => Install(package, version, false);
 
     public override async Task Install(string package, NuGetVersion? version = null, bool queue = false)
     {
@@ -572,38 +562,37 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 
     #region "IDisposeable"
     
-    private bool disposedValue;
-    
-    protected void Dispose(bool disposing)
+    private bool _disposedValue;
+
+    private void Dispose(bool disposing)
     {
-        if (!disposedValue)
+        if (!_disposedValue)
         {
             if (disposing)
             {
                 PackageCache.Dispose();
             }
 
-            disposedValue = true;
+            _disposedValue = true;
         }
     }
 
     private static SourceRepository? GetRepository(string id, NuGetVersion version)
     {
-        var findMetaData = _feedList.Values.SelectMany(f => f)
+        var findMetaData = FeedList.Values.SelectMany(f => f)
             .FirstOrDefault(p => 
                 p.Identity.Id.Equals(id, StringComparison.OrdinalIgnoreCase)
                 && p.Identity.Version == version);
         
-        var repoKey = _feedList.FirstOrDefault(f => f.Value.Contains(findMetaData)).Key;
+        var repoKey = FeedList.FirstOrDefault(f => f.Value.Contains(findMetaData!)).Key;
         return NugetFeedsConfig.Feeds.Select(f => f.GetSourceRepository())
-            .FirstOrDefault(r => r.PackageSource.Source.Equals(repoKey, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(r => r!.PackageSource.Source.Equals(repoKey, StringComparison.OrdinalIgnoreCase));
     }
 
     public void Dispose()
     {
         // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         Dispose(disposing: true);
-        GC.SuppressFinalize(this);
     }
     #endregion
 }
