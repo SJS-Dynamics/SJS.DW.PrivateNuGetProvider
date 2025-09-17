@@ -112,9 +112,9 @@ jobs:
       - name: List packed files (debug)
         run: |
           echo "Contents of nupkg directory:"
-          ls -la ./nupkg/
+          Get-ChildItem -Path "./nupkg" -Force
           echo "Looking for .nupkg files:"
-          find ./nupkg -name "*.nupkg" -type f
+          Get-ChildItem -Path "./nupkg" -Filter "*.nupkg" -Recurse
 
       - name: Publish to NuGet.org
         run: |
@@ -125,6 +125,6 @@ jobs:
           }
           $firstNupkg = $nupkgFiles[0]
           echo "Publishing first package: $($firstNupkg.FullName)"
-          dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push $firstNupkg.FullName --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
