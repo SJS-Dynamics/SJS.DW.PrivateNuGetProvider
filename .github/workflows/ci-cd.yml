@@ -23,6 +23,7 @@ on:
 
 jobs:
   version:
+    name: Determine Version
     runs-on: windows-latest
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     outputs:
@@ -69,11 +70,6 @@ jobs:
           echo "should_deploy=true" >> $env:GITHUB_OUTPUT
           echo "New version: $newVersion"
 
-      - name: Update project version
-        run: |
-          $newVersion = "${{ steps.version.outputs.new_version }}"
-          (Get-Content "src/SJS.DW.PrivateNugetProvider.csproj") -replace '<Version>.*</Version>', "<Version>$newVersion</Version>" | Set-Content "src/SJS.DW.PrivateNugetProvider.csproj"
-
       - name: Create and push tag
         run: |
           $newVersion = "${{ steps.version.outputs.new_version }}"
@@ -81,6 +77,7 @@ jobs:
           git push origin "v$newVersion"
 
   build:
+    name: Build and Publish to NuGet
     needs: [version]
     runs-on: windows-latest
     if: always() && (needs.version.outputs.should_deploy == 'true' || github.ref_type == 'tag')
@@ -94,6 +91,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+          
+      - name: Update project version (if from version job)
+        if: needs.version.outputs.new_version
+        run: |
+          $newVersion = "${{ needs.version.outputs.new_version }}"
+          (Get-Content "src/SJS.DW.PrivateNugetProvider.csproj") -replace '<Version>.*</Version>', "<Version>$newVersion</Version>" | Set-Content "src/SJS.DW.PrivateNugetProvider.csproj"
 
       - name: Restore dependencies
         run: dotnet restore src/SJS.DW.PrivateNugetProvider.csproj
@@ -101,29 +104,8 @@ jobs:
       - name: Build
         run: dotnet build src/SJS.DW.PrivateNugetProvider.csproj --configuration Release --no-restore
 
-#      - name: Test
-#        run: dotnet test src/SJS.DW.PrivateNugetProvider.csproj --no-build --verbosity normal
-#        continue-on-error: true # Remove or set to false if you want to fail on test errors
-
       - name: Pack
         run: dotnet pack src/SJS.DW.PrivateNugetProvider.csproj --configuration Release --no-build --output ./nupkg
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget-package
-          path: ./nupkg/*.nupkg
-
-  deploy:
-    needs: [version, build]
-    runs-on: windows-latest
-    if: always() && needs.build.result == 'success' && (needs.version.outputs.should_deploy == 'true' || github.ref_type == 'tag')
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: nuget-package
-          path: ./nupkg
 
       - name: Publish to NuGet.org
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
