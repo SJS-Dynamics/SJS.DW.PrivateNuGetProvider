@@ -72,14 +72,6 @@ jobs:
           $newVersion = "${{ steps.version.outputs.new_version }}"
           (Get-Content "src/SJS.DW.PrivateNugetProvider.csproj") -replace '<Version>.*</Version>', "<Version>$newVersion</Version>" | Set-Content "src/SJS.DW.PrivateNugetProvider.csproj"
 
-      - name: Commit version bump
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add src/SJS.DW.PrivateNugetProvider.csproj
-          git commit -m "Bump version to ${{ steps.version.outputs.new_version }}"
-          git push
-
       - name: Create and push tag
         run: |
           $newVersion = "${{ steps.version.outputs.new_version }}"
