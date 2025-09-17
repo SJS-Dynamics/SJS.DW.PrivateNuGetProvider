@@ -1,0 +1,136 @@
+# This workflow builds the project and deploys to NuGet.org if successful
+name: Build and Deploy to NuGet
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+
+jobs:
+  version:
+    runs-on: windows-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      should_deploy: ${{ steps.version.outputs.should_deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Get current version
+        id: current_version
+        run: |
+          $version = Select-String -Path "src/SJS.DW.PrivateNugetProvider.csproj" -Pattern "<Version>(.*)</Version>" | ForEach-Object { $_.Matches.Groups[1].Value }
+          echo "current_version=$version" >> $env:GITHUB_OUTPUT
+          echo "Current version: $version"
+
+      - name: Calculate new version
+        id: version
+        run: |
+          $currentVersion = "${{ steps.current_version.outputs.current_version }}"
+          $versionParts = $currentVersion.Split('.')
+          $major = [int]$versionParts[0]
+          $minor = [int]$versionParts[1]
+          $patch = [int]$versionParts[2]
+          
+          $bumpType = "${{ github.event.inputs.version_bump }}"
+          if ([string]::IsNullOrEmpty($bumpType)) { $bumpType = "patch" }
+
+          switch ($bumpType) {
+            "major" { $major++; $minor = 0; $patch = 0 }
+            "minor" { $minor++; $patch = 0 }
+            "patch" { $patch++ }
+          $newVersion = "$major.$minor.$patch"
+          echo "new_version=$newVersion" >> $env:GITHUB_OUTPUT
+          echo "should_deploy=true" >> $env:GITHUB_OUTPUT
+          echo "New version: $newVersion"
+
+      - name: Update project version
+        run: |
+          $newVersion = "${{ steps.version.outputs.new_version }}"
+          (Get-Content "src/SJS.DW.PrivateNugetProvider.csproj") -replace '<Version>.*</Version>', "<Version>$newVersion</Version>" | Set-Content "src/SJS.DW.PrivateNugetProvider.csproj"
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/SJS.DW.PrivateNugetProvider.csproj
+          git commit -m "Bump version to ${{ steps.version.outputs.new_version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          $newVersion = "${{ steps.version.outputs.new_version }}"
+          git tag "v$newVersion"
+          git push origin "v$newVersion"
+
+  build:
+    needs: [version]
+    runs-on: windows-latest
+    if: always() && (needs.version.outputs.should_deploy == 'true' || github.ref_type == 'tag')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_type == 'tag' && github.ref || 'main' }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/SJS.DW.PrivateNugetProvider.csproj
+
+      - name: Build
+        run: dotnet build src/SJS.DW.PrivateNugetProvider.csproj --configuration Release --no-restore
+
+#      - name: Test
+#        run: dotnet test src/SJS.DW.PrivateNugetProvider.csproj --no-build --verbosity normal
+#        continue-on-error: true # Remove or set to false if you want to fail on test errors
+
+      - name: Pack
+        run: dotnet pack src/SJS.DW.PrivateNugetProvider.csproj --configuration Release --no-build --output ./nupkg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: ./nupkg/*.nupkg
+
+  deploy:
+    needs: [version, build]
+    runs-on: windows-latest
+    if: always() && needs.build.result == 'success' && (needs.version.outputs.should_deploy == 'true' || github.ref_type == 'tag')
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: ./nupkg
+
+      - name: Publish to NuGet.org
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
