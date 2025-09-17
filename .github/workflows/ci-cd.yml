@@ -105,9 +105,26 @@ jobs:
         run: dotnet build src/SJS.DW.PrivateNugetProvider.csproj --configuration Release --no-restore
 
       - name: Pack
-        run: dotnet pack src/SJS.DW.PrivateNugetProvider.csproj --configuration Release --no-build --output ./nupkg
+        run: |
+          mkdir -p ./nupkg
+          dotnet pack src/SJS.DW.PrivateNugetProvider.csproj --configuration Release --no-build --output ./nupkg --verbosity normal
+
+      - name: List packed files (debug)
+        run: |
+          echo "Contents of nupkg directory:"
+          ls -la ./nupkg/
+          echo "Looking for .nupkg files:"
+          find ./nupkg -name "*.nupkg" -type f
 
       - name: Publish to NuGet.org
-        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          $nupkgFiles = Get-ChildItem -Path "./nupkg" -Filter "*.nupkg"
+          if ($nupkgFiles.Count -eq 0) {
+            Write-Error "No .nupkg files found in ./nupkg directory"
+            exit 1
+          }
+          $firstNupkg = $nupkgFiles[0]
+          echo "Publishing first package: $($firstNupkg.FullName)"
+          dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
