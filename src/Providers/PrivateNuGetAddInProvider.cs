@@ -20,7 +20,6 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 {
     private const int MAX_CONCURRENT_DOWNLOAD_THREADS = 10;
     private const string OBSOLOTE_TAG = "Obsolete";
-    // private const string DEFAULT_SEARCH_TERM = @"Tag:""dynamicweb-app-store"" Tag:""Addin"" ""dw10""";    
 
     private static ILogger Logger { get; set; } = NullLogger.Instance;
     private static SourceCacheContext PackageCache { get; set; } = new() { DirectDownload = true };
@@ -43,7 +42,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         return set;
     });
     
-    private static HashSet<NuGetFramework> ValidFrameworks { get { return _validFrameworks.Value; } }
+    private static HashSet<NuGetFramework> ValidFrameworks => _validFrameworks.Value;
 
     private static Dictionary<string, List<IPackageSearchMetadata>> _feedList = new(StringComparer.OrdinalIgnoreCase);
     
@@ -55,8 +54,8 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             IncludeDelisted = false, 
         };
 
-        var oldAppDataValue = System.Environment.GetEnvironmentVariable("APPDATA");
-        System.Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
+        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
 
         var addins = new List<AddinInfo>();
         var tasks = new List<Task>();
@@ -64,6 +63,9 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         foreach (var repository in NugetFeedsConfig.Feeds.Select(f => f.GetSourceRepository()))
         {
             // First, get the search results to find package IDs
+            if (repository == null) 
+                continue;
+            
             var searchResource = await repository.GetResourceAsync<PackageSearchResource>(cancellationToken);
             var searchResults = await searchResource.SearchAsync(
                 searchTerm,
@@ -140,7 +142,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
 
         await Task.WhenAll(tasks);
 
-        System.Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
 
         return addins;
     }
@@ -156,8 +158,8 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         var cancellationToken = CancellationToken.None;
         version ??= new("1.0.0");
 
-        var oldAppDataValue = System.Environment.GetEnvironmentVariable("APPDATA");
-        System.Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
+        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
         
         // Get 
         var repository = GetRepository(id, version);
@@ -175,7 +177,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             Logger,
             cancellationToken);
 
-        System.Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
 
         if (packageStream?.Length == 0) return default;
 
@@ -233,8 +235,6 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         }
 
         return new(true);
-
-
     }
 
     public static ApplicationResponse UninstallAddInDependencies(string package)
@@ -273,7 +273,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             }
             else
             {
-                response = AddinProvider.UninstallAddin(dependency);
+                response = UninstallAddin(dependency);
             }
 
             if (!response.Succeeded)
@@ -338,8 +338,8 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
     //Downloads the specified package
     private async Task<NuGetFramework?> DownloadPackage(ResolvedPackage resolved, string saveLocation, CancellationToken cancellationToken)
     {
-        var oldAppDataValue = System.Environment.GetEnvironmentVariable("APPDATA");
-        System.Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
+        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
         
         // Get repository
         var repository = GetRepository(resolved.Package, resolved.Version);
@@ -383,7 +383,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
         archive.Dispose();
         packageStream.Dispose();
 
-        System.Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
 
         return framework;
     }
@@ -398,8 +398,8 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
     {
         var cancellationToken = CancellationToken.None;
 
-        var oldAppDataValue = System.Environment.GetEnvironmentVariable("APPDATA");
-        System.Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
+        var oldAppDataValue = Environment.GetEnvironmentVariable("APPDATA");
+        Environment.SetEnvironmentVariable("APPDATA", SystemInformation.MapPath("/Files/System"));
 
         var repository = GetRepository(id, preference?.Version ?? new NuGetVersion("1.0.0"));
         var resource = await repository.GetResourceAsync<DependencyInfoResource>();
@@ -442,31 +442,15 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
                 }
                 resolved.Dependencies = resolved.Dependencies.Distinct().ToList();
             }
-            System.Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+            Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
 
             return resolved;
         }
-        System.Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
+        Environment.SetEnvironmentVariable("APPDATA", oldAppDataValue);
 
         return default;
     }
 
-    /// <summary>
-    /// Gets the top 5 minor/patch versions of the latest major version, and the top 1 minor version of the next 4 major versions
-    /// </summary>
-    /// <example>
-    /// 6.5.2 - First major, latest minor, latest patch
-    /// 6.5.1 - First major, latest minor, second newest patch
-    /// 6.4.3 - First major, second newest minor, latest patch
-    /// 6.4.2 - First major ...
-    /// 6.4.0 - First major
-    /// 5.9.17 - Second major, latest minor, latest patch
-    /// 4.3.1 - Third
-    /// 3.1.1 ...
-    /// 2.4.6 - Fifth major
-    /// </example>
-    /// <param name="sourceDependencies"></param>
-    /// <returns></returns>
     private static IEnumerable<SourcePackageDependencyInfo> GetAvailablePackages(IEnumerable<RemoteSourceDependencyInfo> sourceDependencies)
     {
         int minor = 500;
@@ -480,7 +464,6 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider
             if (!sourceDependency.Listed) continue;
 
             var version = sourceDependency.Identity.Version;
-            //if (version.IsPrerelease || version.IsLegacyVersion) continue;
 
             if (currentMajor != version.Major)
             {
