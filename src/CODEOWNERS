@@ -1,0 +1,61 @@
+# CODEOWNERS file for SJS.DW.PrivateNugetProvider
+# This file defines who owns what parts of the repository and who must approve changes
+# For public contributions: External contributors can submit PRs but all changes require maintainer approval
+
+# Global ownership - All changes require maintainer approval
+# This ensures no code can be merged without review from the core team
+* @jweeksSJS @SJS-Dynamics/Corporate Team
+
+# CRITICAL FILES - Only repository maintainers can modify these
+# These files control repository behavior and security - no external contributions allowed
+
+# CI/CD and Actions - Only repository maintainers
+/.github/ @jweeksSJS
+/.github/workflows/ @jweeksSJS
+/.github/ISSUE_TEMPLATE/ @jweeksSJS
+azure-pipelines.yml @jweeksSJS
+azure-pipelines.yaml @jweeksSJS
+.azure/ @jweeksSJS
+pipelines/ @jweeksSJS
+Dockerfile @jweeksSJS
+docker-compose.yml @jweeksSJS
+
+# Repository configuration files - Only repository maintainers
+.gitignore @jweeksSJS
+.gitattributes @jweeksSJS
+CODEOWNERS @jweeksSJS
+LICENSE @jweeksSJS
+SECURITY.md @jweeksSJS
+
+# Build and project configuration files - Only repository maintainers
+*.sln @jweeksSJS
+*.csproj @jweeksSJS
+global.json @jweeksSJS
+Directory.Build.props @jweeksSJS
+Directory.Build.targets @jweeksSJS
+nuget.config @jweeksSJS
+.editorconfig @jweeksSJS
+
+# Package and dependency configuration - Only repository maintainers
+packages.config @jweeksSJS
+PackageReference.props @jweeksSJS
+
+# CONTRIBUTABLE FILES - External contributors can modify, but require maintainer approval
+# All source code changes welcome from community but must be reviewed
+
+# Documentation - Community contributions welcome with maintainer review
+README.md @jweeksSJS @SJS-Dynamics/Corporate Team
+docs/ @jweeksSJS @SJS-Dynamics/Corporate Team
+*.md @jweeksSJS @SJS-Dynamics/Corporate Team
+
+# Source code - Community contributions welcome with mandatory maintainer review
+# All code changes require approval to ensure quality and security
+Middleware/ @jweeksSJS @SJS-Dynamics/Corporate Team
+Models/ @jweeksSJS @SJS-Dynamics/Corporate Team
+Providers/ @jweeksSJS @SJS-Dynamics/Corporate Team
+
+# Unit tests - Community can contribute tests with maintainer review
+Tests/ @jweeksSJS @SJS-Dynamics/Corporate Team
+test/ @jweeksSJS @SJS-Dynamics/Corporate Team
+*Test.cs @jweeksSJS @SJS-Dynamics/Corporate Team
+*Tests.cs @jweeksSJS @SJS-Dynamics/Corporate Team

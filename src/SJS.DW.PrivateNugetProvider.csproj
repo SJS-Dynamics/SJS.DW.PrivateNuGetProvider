@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>SJS.DW.PrivateNugetProvider</RootNamespace>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Version>0.1.0</Version>
+        <Title>Private NuGet</Title>
+        <Summary>Connect to Private NuGet Feeds in Dynamicweb</Summary>
+        <Authors>SJS Dynamics LLC</Authors>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageProjectUrl>https://sjsdynamics.com</PackageProjectUrl>
+        <Company>SJS Dynamics LLC</Company>
+        <PackageTags>dynamicweb-app-store;dw10;addin;integration;addinprovider</PackageTags>
+        <Description>AddinProvider for private nuget feeds. Supports multiple private feeds.</Description>
+        <PackageIcon>sjslogo.png</PackageIcon>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="Dynamicweb.Marketplace" Version="10.*" />
+        <PackageReference Include="Dynamicweb.Core" Version="10.*" />
+        <PackageReference Include="Dynamicweb.Host.Core" Version="10.*" />
+        <PackageReference Include="Dynamicweb.Content.UI" Version="10.*" />
+        <PackageReference Include="Dynamicweb.CoreUI" Version="10.*" />
+        <PackageReference Include="Dynamicweb.CoreUI.Rendering" Version="10.*" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="sjslogo.png" Pack="true" PackagePath="\" />
+    </ItemGroup>
+    
+</Project>
