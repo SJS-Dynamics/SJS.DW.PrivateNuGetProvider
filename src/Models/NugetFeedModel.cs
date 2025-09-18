@@ -1,18 +1,25 @@
+using System.ComponentModel.DataAnnotations.Schema;
+using Dynamicweb.CoreUI.Data;
 using NuGet.Configuration;
 using NuGet.Protocol.Core.Types;
 
 namespace SJS.DW.PrivateNugetProvider.Models;
 
-public static class NugetFeedsConfig
+public class NugetFeedModel : DataViewModelBase
 {
-    public static List<NugetFeed> Feeds { get; set; } = new();
-}
-
-public class NugetFeed
-{
-    public string Name { get; set; } = string.Empty;
-    public string Url { get; set; } = string.Empty;
+    [Column("Id")]
+    public long? FeedId { get; set; }
+    
+    [ConfigurableProperty]
+    public string Name { get; set; }
+    
+    [ConfigurableProperty]
+    public string Url { get; set; }
+    
+    [ConfigurableProperty]
     public string? Username { get; set; }
+    
+    [ConfigurableProperty]
     public string? Password { get; set; }
     
     // Return SourceRepository
