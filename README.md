@@ -11,7 +11,7 @@ making it easy to manage dependencies from private sources.
 - Support for authenticated and unauthenticated feeds.
 - Integrates seamlessly with existing Apps in Dynamicweb.
 - Easy to configure and manage.
-- 
+
 ## Configuration Options
 - `Name`: The name of the NuGet feed.
 - `Url`: The URL of the NuGet feed.
