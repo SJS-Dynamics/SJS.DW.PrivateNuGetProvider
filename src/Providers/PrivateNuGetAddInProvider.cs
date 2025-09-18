@@ -62,7 +62,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider, IDisposable
 
         var addins = new List<AddinInfo>();
 
-        foreach (var repository in NugetFeedsConfig.Feeds.Select(f => f.GetSourceRepository()))
+        foreach (var repository in NugetFeedsConfig.LoadFeeds().Select(f => f.GetSourceRepository()))
         {
             // First, get the search results to find package IDs
             if (repository == null) 
@@ -585,7 +585,7 @@ public sealed class PrivateNuGetAddInProvider : AddinProvider, IDisposable
                 && p.Identity.Version == version);
         
         var repoKey = FeedList.FirstOrDefault(f => f.Value.Contains(findMetaData!)).Key;
-        return NugetFeedsConfig.Feeds.Select(f => f.GetSourceRepository())
+        return NugetFeedsConfig.LoadFeeds().Select(f => f.GetSourceRepository())
             .FirstOrDefault(r => r!.PackageSource.Source.Equals(repoKey, StringComparison.OrdinalIgnoreCase));
     }
 

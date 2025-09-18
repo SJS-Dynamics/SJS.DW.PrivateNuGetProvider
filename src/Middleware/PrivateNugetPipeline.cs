@@ -11,7 +11,11 @@ public class PrivateNugetPipeline : IPipeline
     public void RegisterServices(IServiceCollection services, IMvcCoreBuilder mvcBuilder)
     {
         var configuration = services.BuildServiceProvider().GetRequiredService<IConfiguration>();
-        var nugetFeeds = configuration.GetSection("PrivateNugetFeeds").Get<List<NugetFeed>>() ?? new List<NugetFeed>();
+        
+        // Pull PrivateNugetFeeds from configuration
+        var nugetFeeds = configuration.GetSection("PrivateNugetFeeds").Get<List<NugetFeedModel>>() ?? new List<NugetFeedModel>();
+        
+        // Assign to static config
         NugetFeedsConfig.Feeds = nugetFeeds;
     }
 
