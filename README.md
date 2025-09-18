@@ -2,6 +2,10 @@
 This plugin allows you to add private NuGet feeds to your project. It supports both authenticated and unauthenticated feeds, 
 making it easy to manage dependencies from private sources.
 
+## Requirements
+- Dynamicweb 10.15.11 or later
+- .NET 8.0 or later
+
 ## Features
 - Add private NuGet feeds to your project via configuration or through the Dynamicweb admin interface.
 - Support for authenticated and unauthenticated feeds.
