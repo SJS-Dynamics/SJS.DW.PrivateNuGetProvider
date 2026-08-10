@@ -1,18 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>SJS.DW.PrivateNugetProvider</RootNamespace>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>0.2.0</Version>
+        <Version>0.2.263</Version>
         <Title>Private NuGet</Title>
         <Summary>Connect to Private NuGet Feeds in Dynamicweb</Summary>
-        <Authors>SJS Dynamics LLC</Authors>
+        <Authors>SJS Dynamics</Authors>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageProjectUrl>https://sjsdynamics.com</PackageProjectUrl>
-        <Company>SJS Dynamics LLC</Company>
+        <Company>SJS Dynamics</Company>
         <PackageTags>dynamicweb-app-store;dw10;addin;integration;addinprovider</PackageTags>
         <Description>AddinProvider for private nuget feeds. Supports multiple private feeds.</Description>
         <PackageIcon>sjslogo.png</PackageIcon>
@@ -20,7 +20,22 @@
     </PropertyGroup>
     
     <PropertyGroup>
-        <PackageReleaseNotes>### 0.2.0
+        <PackageReleaseNotes>
+            ### 0.2.263
+            - Updated dependencies to 10.25.x
+            - Added support for Dynamicweb 10.25
+            - Minor bug fixes and performance improvements
+            ### 0.2.262
+            - Treat unavailable or unauthorized private feeds as non-fatal during search and resolution
+            - Log skipped feeds while continuing with remaining NuGet sources
+            - Protect stored feed credentials and migrate legacy credential formats
+            ### 0.2.211
+            - Resolved NotSupportedException
+            ### 0.2.2
+            - Updated dependencies to 10.25.x
+            - Added support for Dynamicweb 10.25
+            - Minor bug fixes and performance improvements
+            ### 0.2.0
             - Updated dependencies to 10.15.x
             - Added support for Dynamicweb 10.15
             - Added support for private feed management in UI
@@ -35,12 +50,13 @@
     </ItemGroup>
     
     <ItemGroup>
-        <PackageReference Include="Dynamicweb.Marketplace" Version="10.15.*" />
-        <PackageReference Include="Dynamicweb.Core" Version="10.15.*" />
-        <PackageReference Include="Dynamicweb.Host.Core" Version="10.15.*" />
-        <PackageReference Include="Dynamicweb.Content.UI" Version="10.15.*" />
-        <PackageReference Include="Dynamicweb.CoreUI" Version="10.15.*" />
-        <PackageReference Include="Dynamicweb.Apps.UI" Version="10.15.*" />
+        <PackageReference Include="Dynamicweb.Marketplace" Version="10.25.*" />
+        <PackageReference Include="Dynamicweb.Core" Version="10.25.*" />
+        <PackageReference Include="Dynamicweb.Host.Core" Version="10.25.*" />
+        <PackageReference Include="Dynamicweb.Content.UI" Version="10.25.*" />
+        <PackageReference Include="Dynamicweb.CoreUI" Version="10.25.*" />
+        <PackageReference Include="Dynamicweb.Apps.UI" Version="10.25.*" />
+        <PackageReference Include="Markdig" Version="1.3.2" />
 <!--        <PackageReference Include="Dynamicweb.CoreUI.Rendering" Version="10.*" />-->
     </ItemGroup>
 

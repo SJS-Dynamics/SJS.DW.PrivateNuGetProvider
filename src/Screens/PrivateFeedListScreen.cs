@@ -25,7 +25,7 @@ public class PrivateFeedListScreen : ListScreenBase<LimitedNugetFeedModel>
         };
     }
 
-    protected override IEnumerable<ActionGroup> GetListContextActions()
+    protected override IEnumerable<ActionGroup>? GetListContextActions()
     {
         var actions = new List<ActionGroup>();
         var createAction = new ActionNode

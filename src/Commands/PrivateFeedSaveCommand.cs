@@ -1,8 +1,8 @@
 using Dynamicweb.Core;
 using Dynamicweb.CoreUI.Data;
 using Dynamicweb.Data;
-using Dynamicweb.Security.SystemTools;
 using SJS.DW.PrivateNugetProvider.Models;
+using SJS.DW.PrivateNugetProvider.Security;
 
 namespace SJS.DW.PrivateNugetProvider.Commands;
 
@@ -19,7 +19,7 @@ public class PrivateFeedSaveCommand : CommandBase<NugetFeedModel>
         
         var encryptedPassword = string.IsNullOrEmpty(Model.Password) 
             ? null 
-            : Crypto.Encrypt(Model.Password);
+            : FeedCredentialProtector.Protect(Model.Password);
 
         using var conn = Database.CreateConnection();
         if (Model.FeedId is null or <= 0)
@@ -44,6 +44,10 @@ public class PrivateFeedSaveCommand : CommandBase<NugetFeedModel>
             Database.ExecuteNonQuery(update, conn);
         }
         
+        // Never echo a submitted secret back into the screen model/ShadowEdit response.
+        // An empty password on an existing feed deliberately preserves the encrypted DB value.
+        Model.Password = null;
+
         return new CommandResult
         {
             Model = Model,
