@@ -1,8 +1,8 @@
 using System.Data;
 using Dynamicweb.CoreUI.Data;
 using Dynamicweb.Data;
-using Dynamicweb.Security.SystemTools;
 using SJS.DW.PrivateNugetProvider.Models;
+using SJS.DW.PrivateNugetProvider.Security;
 
 namespace SJS.DW.PrivateNugetProvider.Queries;
 
@@ -66,10 +66,21 @@ public sealed class PrivateFeedFullListQuery : DataQueryListBase<NugetFeedModel,
     {
         var feeds = new List<NugetFeedModel>();
         var sql = CommandBuilder.Create("SELECT FeedId, Name, Url, Username, Password FROM PrivateFeeds");
-        using var reader = Database.CreateDataReader(sql);
-        while (reader.Read())
+        using (var reader = Database.CreateDataReader(sql))
         {
-            feeds.Add(ExtractModel(reader));
+            while (reader.Read())
+            {
+                feeds.Add(ExtractModel(reader));
+            }
+        }
+
+        foreach (var feed in feeds.Where(feed => feed.CredentialNeedsMigration && !string.IsNullOrEmpty(feed.Password)))
+        {
+            var update = CommandBuilder.Create(
+                "UPDATE PrivateFeeds SET Password = {0} WHERE FeedId = {1}",
+                FeedCredentialProtector.Protect(feed.Password),
+                feed.FeedId);
+            Database.ExecuteNonQuery(update);
         }
 
         return feeds;
@@ -96,8 +107,9 @@ public sealed class PrivateFeedFullListQuery : DataQueryListBase<NugetFeedModel,
         try{
             if (!reader.IsDBNull(4))
             {
-                var password = reader.GetString(4);
-                model.Password = string.IsNullOrEmpty(password) ? null : Crypto.Decrypt(password);
+                var storedPassword = reader.GetString(4);
+                model.Password = FeedCredentialProtector.Unprotect(storedPassword, out var shouldMigrate);
+                model.CredentialNeedsMigration = shouldMigrate;
             }
         }
         catch (Exception ex)

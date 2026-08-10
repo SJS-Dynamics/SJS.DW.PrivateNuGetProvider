@@ -19,8 +19,13 @@ public class NugetFeedModel : DataViewModelBase
     [ConfigurableProperty]
     public string? Username { get; set; }
     
+    // This value is decrypted only for constructing an in-memory NuGet repository.
+    // UI queries must leave it null so an existing secret is never placed in ShadowEdit state.
     [ConfigurableProperty]
     public string? Password { get; set; }
+
+    [NotMapped]
+    internal bool CredentialNeedsMigration { get; set; }
     
     // Return SourceRepository
     private SourceRepository? _sourceRepository;

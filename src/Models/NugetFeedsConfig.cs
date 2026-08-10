@@ -39,7 +39,7 @@ public static class NugetFeedsConfig
         {
             _feeds.Add(feed);
         }
-        
+
         return _feeds;
     }
 }
