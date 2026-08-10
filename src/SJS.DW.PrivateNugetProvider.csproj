@@ -16,6 +16,7 @@
         <PackageTags>dynamicweb-app-store;dw10;addin;integration;addinprovider</PackageTags>
         <Description>AddinProvider for private nuget feeds. Supports multiple private feeds.</Description>
         <PackageIcon>sjslogo.png</PackageIcon>
+        <RepositoryUrl>https://github.com/SJS-Dynamics/SJS.DW.PrivateNuGetProvider</RepositoryUrl>
     </PropertyGroup>
     
     <PropertyGroup>
